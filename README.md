@@ -1,2 +1,4 @@
 # agile_io
-just want to make career life easier
+to make career life easier
+
+write nonblocking network programme in coroutine way
