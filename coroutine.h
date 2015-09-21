@@ -13,8 +13,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
-#include <queue>
+#include <deque>
 #include <set>
+#include "event_op.h"
 
 #define COROUTINE_STACK_SIZE (1024*1024)
 
@@ -44,7 +45,29 @@ public:
 	int status_;
 	char* stack_;
 	int coid_;
+    bool istimeout_;
+    long long timeout_;
 };
+
+struct cotimeout
+{
+    int coid;
+    int timeout;
+};
+
+struct cotimeout_comp
+{
+    bool operator()(const cotimeout& left, const cotimeout& right)
+    {
+        if (left.timeout != right.timeout)
+        {
+            return left.timeout < right.timeout;
+        }
+        return left.coid < right.coid;
+    }
+};
+
+typedef std::set<cotimeout, cotimeout_comp> cotimeout_queue;
 
 class schedule
 {
@@ -60,15 +83,23 @@ public:
 	void resume(int coid);
 	void yield();
 	int status(int coid);
+    void coroutine_ready(int coid);
+    void urgent_coroutine_ready(int coid);
+    void wait(int milliseconds);
+    bool istimeout();
 
 	ucontext_t mainctx_;
 	int currentco_;
 	std::map<int, coroutine*> coroutines_;
 	int next_coid_;
     
-    std::queue<int> ready_cos_;
+    std::deque<int> ready_cos_;
     std::set<int> suspend_cos_;
+    
+    cotimeout_queue timers_;
 };
+
+long long current_miliseconds();
 
 #endif
 

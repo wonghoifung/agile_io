@@ -5,6 +5,14 @@
 
 #include "coroutine.h"
 #include <assert.h>
+#include <sys/time.h>
+
+long long current_miliseconds()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
 
 static void coroutine_delegate()
 {
@@ -17,7 +25,8 @@ static void coroutine_delegate()
 
 coroutine::coroutine(schedule* s, coroutine_cb cb, void* ud, int coid)
 	:cb_(cb), sch_(s), ud_(ud), status_(COROUTINE_READY), 
-	stack_((char*)malloc(COROUTINE_STACK_SIZE)), coid_(coid)
+	stack_((char*)malloc(COROUTINE_STACK_SIZE)), coid_(coid),
+    istimeout_(false), timeout_(0)
 {
 	assert(stack_);
 	int ret = getcontext(&uctx_);
@@ -119,4 +128,48 @@ int schedule::status(int coid)
 	}
 	return COROUTINE_DEAD;
 }
+
+void schedule::coroutine_ready(int coid)
+{
+    coroutine* co = coroutines_[coid];
+    assert(co);
+    co->istimeout_ = false;
+    suspend_cos_.erase(coid);
+    ready_cos_.push_back(coid);
+}
+
+void schedule::urgent_coroutine_ready(int coid)
+{
+    coroutine* co = coroutines_[coid];
+    assert(co);
+    co->istimeout_ = false;
+    suspend_cos_.erase(coid);
+    ready_cos_.push_front(coid);
+}
+
+void schedule::wait(int milliseconds)
+{
+    coroutine* currco = coroutines_[currentco_];
+    assert(currco);
+    currco->timeout_ = current_miliseconds() + milliseconds;
+    cotimeout ct;
+    ct.coid = currentco_;
+    ct.timeout = currco->timeout_;
+    timers_.insert(ct);
+    suspend_cos_.insert(currentco_);
+    yield();
+}
+
+bool schedule::istimeout()
+{
+    coroutine* currco = coroutines_[currentco_];
+    assert(currco);
+    bool ret = currco->timeout_;
+    currco->timeout_ = false;
+    return ret;
+}
+
+
+
+
 

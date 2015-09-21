@@ -21,7 +21,135 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include <vector>
 
+static void connection_coroutine(schedule* s, void* args)
+{
+    int connfd = (int)(intptr_t)args;
+    
+    const size_t len = 1024;
+    char buf[len] = {0};
+    while (true)
+    {
+        ssize_t n = RECV(connfd, buf, len, 0);
+        if (n <= 0) {
+            break;
+        }
+        SEND(connfd, buf, len, 0);
+    }
+    close(connfd);
+}
+
+static void accept_coroutine(schedule* s, void* args)
+{
+    int listenfd = ud2fd(args);
+
+    for (;;)
+    {
+        struct sockaddr addr;
+        socklen_t addrlen;
+        int connfd = accept(listenfd, &addr, &addrlen);
+        if (connfd > 0)
+        {
+            if (schedule::ref().new_coroutine(connection_coroutine, (void *)(intptr_t)connfd))
+            {
+                printf("system busy to handle request.\n");
+                close(connfd);
+                continue;
+            }
+            //increase_conn();
+        }
+        else if (connfd == 0)
+        {
+            schedule::ref().wait(200);
+            continue;
+        }
+    }
+}
+
+std::deque<int>& ready_cos = schedule::ref().ready_cos_;
+std::set<int>& suspend_cos = schedule::ref().suspend_cos_;
+
+void run_ready_coroutines()
+{
+    schedule& s = schedule::ref();
+    
+    while (ready_cos.size())
+    {
+        int coid = ready_cos.front();
+        ready_cos.pop_front();
+        if (s.status(coid))
+        {
+            s.resume(coid);
+        }
+        /*
+        if (s.status(coid) == COROUTINE_READY)
+        {
+            ready_cos.push_back(coid);
+        }
+        else if (s.status(coid) == COROUTINE_SUSPEND)
+        {
+            suspend_cos.insert(coid);
+        }
+        else if (s.status(coid) == COROUTINE_DEAD)
+        {
+            s.del_coroutine(coid);
+        }
+        else
+        {
+            assert(0);
+        }
+        */
+    }
+}
+
+int main(int argc, char** argv)
+{
+    event_loop_init(1024);
+    int listenfd = create_tcp_server("0.0.0.0", 9797);
+    schedule::ref().new_coroutine(accept_coroutine, fd2ud(listenfd));
+    
+    for (;;) {
+        long long now = current_miliseconds();
+        std::vector<cotimeout> tos;
+        cotimeout_queue::iterator it(schedule::ref().timers_.begin());
+        for (; it != schedule::ref().timers_.end(); ++it)
+        {
+            if (now < it->timeout) {
+                break;
+            }
+            int coid = it->coid;
+            coroutine* co = schedule::ref().coroutines_[coid];
+            assert(co);
+            co->istimeout_ = true;
+            schedule::ref().suspend_cos_.erase(coid);
+            schedule::ref().ready_cos_.push_back(coid);
+            tos.push_back(*it);
+        }
+        for (size_t i=0; i<tos.size(); ++i) {
+            schedule::ref().timers_.erase(tos[i]);
+        }
+        
+        run_ready_coroutines();
+        
+        int timeout_milliseconds = 0;
+        if (schedule::ref().timers_.empty()) {
+            timeout_milliseconds = 10 * 1000;
+        }
+        else {
+            timeout_milliseconds = (schedule::ref().timers_.begin())->timeout -current_miliseconds();
+            if (timeout_milliseconds < 0) {
+                timeout_milliseconds = 0;
+            }
+        }
+        event_loop(timeout_milliseconds);
+        run_ready_coroutines();
+    }
+    
+    return 0;
+}
+
+#if 0
 static void func1(schedule* s, void* ud)
 {
 	int i = 0;
@@ -44,7 +172,7 @@ static void func2(schedule* s, void* ud)
 	}
 }
 
-std::queue<int>& ready_cos = schedule::ref().ready_cos_;
+std::deque<int>& ready_cos = schedule::ref().ready_cos_;
 std::set<int>& suspend_cos = schedule::ref().suspend_cos_;
 
 void run_ready_coroutines()
@@ -54,7 +182,7 @@ void run_ready_coroutines()
 	while (ready_cos.size())
 	{
 		int coid = ready_cos.front();
-		ready_cos.pop();
+		ready_cos.pop_front();
 		if (s.status(coid))
 		{
 			s.resume(coid);
@@ -62,7 +190,7 @@ void run_ready_coroutines()
 
 		if (s.status(coid) == COROUTINE_READY)
 		{
-			ready_cos.push(coid);
+			ready_cos.push_back(coid);
 		}
 		else if (s.status(coid) == COROUTINE_SUSPEND)
 		{
@@ -86,20 +214,21 @@ int main(int argc, char** argv)
 	int co1 = s.new_coroutine(func1, NULL);
 	int co2 = s.new_coroutine(func2, NULL);
 
-	ready_cos.push(co1);
-	ready_cos.push(co2);
+	ready_cos.push_back(co1);
+	ready_cos.push_back(co2);
 
 	while (ready_cos.size())
 	{
 		run_ready_coroutines();
 		std::set<int>::iterator it(suspend_cos.begin());
-		for (; it != suspend_cos.end(); ++it) ready_cos.push(*it);
+		for (; it != suspend_cos.end(); ++it) ready_cos.push_back(*it);
 		suspend_cos.clear();
 	}
 
 	printf("...\n");
 	return 0;
 }
+#endif
 
 #if 0
 void handle_close(int fd)
