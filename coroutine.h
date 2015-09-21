@@ -13,7 +13,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
-#include <vector>
+#include <queue>
+#include <set>
 
 #define COROUTINE_STACK_SIZE (1024*1024)
 
@@ -64,6 +65,9 @@ public:
 	int currentco_;
 	std::map<int, coroutine*> coroutines_;
 	int next_coid_;
+    
+    std::queue<int> ready_cos_;
+    std::set<int> suspend_cos_;
 };
 
 #endif

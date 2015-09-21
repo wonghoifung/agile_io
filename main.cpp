@@ -21,8 +21,6 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <queue>
-#include <set>
 
 static void func1(schedule* s, void* ud)
 {
@@ -46,9 +44,8 @@ static void func2(schedule* s, void* ud)
 	}
 }
 
-std::queue<int> ready_cos;
-
-std::set<int> suspend_cos;
+std::queue<int>& ready_cos = schedule::ref().ready_cos_;
+std::set<int>& suspend_cos = schedule::ref().suspend_cos_;
 
 void run_ready_coroutines()
 {

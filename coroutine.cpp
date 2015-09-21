@@ -66,6 +66,9 @@ int schedule::new_coroutine(coroutine_cb cb, void* ud)
 	coroutine* co = new coroutine(this, cb, ud, next_coid_);
 	coroutines_.insert(std::make_pair(co->coid_, co));
 	next_coid_ += 1;
+    if (next_coid_ == -1) {
+        next_coid_ += 1;
+    }
 	return co->coid_;
 }
 
