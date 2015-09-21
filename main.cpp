@@ -82,7 +82,7 @@ void run_ready_coroutines()
         {
             s.resume(coid);
         }
-        /*
+        
         if (s.status(coid) == COROUTINE_READY)
         {
             ready_cos.push_back(coid);
@@ -99,7 +99,7 @@ void run_ready_coroutines()
         {
             assert(0);
         }
-        */
+        
     }
 }
 
