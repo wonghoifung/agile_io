@@ -6,8 +6,9 @@
 //  Copyright (c) 2015 wonghoifung. All rights reserved.
 //
 
-#include "kqueue_op.h"
+#include "event_op.h"
 #include "socket_op.h"
+#include "coroutine.h"
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -19,7 +20,87 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
+#include <queue>
+#include <set>
 
+static void func1(schedule* s, void* ud)
+{
+	int i = 0;
+	while (i < 5)
+	{
+		printf("[%s] %d\n", __FUNCTION__, i);
+		i += 1;
+		s->yield();
+	}
+}
+
+static void func2(schedule* s, void* ud)
+{
+	int i = 0;
+	while (i < 5)
+	{
+		printf("[%s] %d\n", __FUNCTION__, i);
+		i += 1;
+		s->yield();
+	}
+}
+
+std::queue<int> ready_cos;
+
+std::set<int> suspend_cos;
+
+void run_ready_coroutines()
+{
+	schedule& s = schedule::ref();
+
+	while (ready_cos.size())
+	{
+		int coid = ready_cos.front();
+		ready_cos.pop();
+		if (s.status(coid))
+		{
+			s.resume(coid);
+		}
+
+		if (s.status(coid) == COROUTINE_READY)
+		{
+			ready_cos.push(coid);
+		}
+		else if (s.status(coid) == COROUTINE_SUSPEND)
+		{
+			suspend_cos.insert(coid);
+		}
+		else if (s.status(coid) == COROUTINE_DEAD)
+		{
+			s.del_coroutine(coid);
+		}
+		else
+		{
+			assert(0);
+		}
+	}
+}
+
+int main(int argc, char** argv)
+{
+	schedule& s = schedule::ref();
+
+	int co1 = s.new_coroutine(func1, NULL);
+	int co2 = s.new_coroutine(func2, NULL);
+
+	ready_cos.push(co1);
+	ready_cos.push(co2);
+
+	run_ready_coroutines();
+	ready_cos.push(co1);
+	run_ready_coroutines();
+
+	printf("...\n");
+	return 0;
+}
+
+#if 0
 void handle_close(int fd)
 {
     del_fd_event(fd, EVENT_ALL);
@@ -120,4 +201,6 @@ int main(int argc, char** argv)
     }
     return 0;
 }
+
+#endif
 

@@ -5,7 +5,7 @@
 //  Created by huanghaifeng on 15/9/19.
 //  Copyright (c) 2015 wonghoifung. All rights reserved.
 //
-
+#ifdef __APPLE__
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -185,4 +185,4 @@ void event_loop_init(int maxconn)
         exit(0);
     }
 }
-
+#endif

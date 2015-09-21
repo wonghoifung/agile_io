@@ -9,13 +9,7 @@
 #ifndef __agile_io_xc__kqueue_op__
 #define __agile_io_xc__kqueue_op__
 
-enum event_t
-{
-    EVENT_NONE = 0x0,
-    EVENT_READ = 0x1,
-    EVENT_WRITE = 0x2,
-    EVENT_ALL = 0x3,
-};
+#include "event_defs.h"
 
 typedef void (*event_callback)(void* args);
 
@@ -26,15 +20,5 @@ void del_fd_event(int fd, event_t et);
 void event_loop(int millisecs);
 
 void event_loop_init(int maxconn);
-
-inline void* fd2ud(int fd)
-{
-    return (void*)(long)fd;
-}
-
-inline int ud2fd(void* ud)
-{
-    return (int)(long)ud;
-}
 
 #endif /* defined(__agile_io_xc__kqueue_op__) */

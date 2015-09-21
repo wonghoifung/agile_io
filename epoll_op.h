@@ -9,6 +9,16 @@
 #ifndef __agile_io_xc__epoll_op__
 #define __agile_io_xc__epoll_op__
 
-#include <stdio.h>
+#include "event_defs.h"
+
+typedef void (*event_callback)(void* args);
+
+int add_fd_event(int fd, event_t et, event_callback event_cb, void* args);
+
+void del_fd_event(int fd, event_t et);
+
+void event_loop(int millisecs);
+
+void event_loop_init(int maxconn);
 
 #endif /* defined(__agile_io_xc__epoll_op__) */
