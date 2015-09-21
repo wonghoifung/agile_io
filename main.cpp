@@ -92,9 +92,13 @@ int main(int argc, char** argv)
 	ready_cos.push(co1);
 	ready_cos.push(co2);
 
-	run_ready_coroutines();
-	ready_cos.push(co1);
-	run_ready_coroutines();
+	while (ready_cos.size())
+	{
+		run_ready_coroutines();
+		std::set<int>::iterator it(suspend_cos.begin());
+		for (; it != suspend_cos.end(); ++it) ready_cos.push(*it);
+		suspend_cos.clear();
+	}
 
 	printf("...\n");
 	return 0;

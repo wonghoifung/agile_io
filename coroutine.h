@@ -5,6 +5,10 @@
 #ifndef COROUTINE_HEADER
 #define COROUTINE_HEADER
 
+#ifdef __APPLE__
+#define _XOPEN_SOURCE 600
+#endif
+
 #include <ucontext.h>
 #include <stdio.h>
 #include <stdlib.h>
