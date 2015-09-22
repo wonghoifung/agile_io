@@ -134,8 +134,8 @@ void schedule::coroutine_ready(int coid)
     coroutine* co = coroutines_[coid];
     assert(co);
     co->istimeout_ = false;
-    //suspend_cos_.erase(coid);
-    //ready_cos_.push_back(coid);
+    suspend_cos_.erase(coid);
+    ready_cos_.push_back(coid);
     co->status_ = COROUTINE_READY;
 }
 
@@ -144,8 +144,8 @@ void schedule::urgent_coroutine_ready(int coid)
     coroutine* co = coroutines_[coid];
     assert(co);
     co->istimeout_ = false;
-    //suspend_cos_.erase(coid);
-    //ready_cos_.push_front(coid);
+    suspend_cos_.erase(coid);
+    ready_cos_.push_front(coid);
     co->status_ = COROUTINE_READY;
 }
 
@@ -159,7 +159,6 @@ void schedule::wait(int milliseconds)
     ct.timeout = currco->timeout_;
     timers_.insert(ct);
     //suspend_cos_.insert(currentco_);
-    currco->status_ = COROUTINE_SUSPEND;
     yield();
 }
 

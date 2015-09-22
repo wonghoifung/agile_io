@@ -25,6 +25,7 @@
 
 static void connection_coroutine(schedule* s, void* args)
 {
+    printf("connection_coroutine\n");
     int connfd = (int)(intptr_t)args;
     
     const size_t len = 1024;
@@ -33,6 +34,7 @@ static void connection_coroutine(schedule* s, void* args)
     {
         ssize_t n = RECV(connfd, buf, len, 0);
         if (n <= 0) {
+            printf("RECV return %d\n", n);
             break;
         }
         SEND(connfd, buf, len, 0);
@@ -52,18 +54,18 @@ static void accept_coroutine(schedule* s, void* args)
         int connfd = ACCEPT(listenfd, &addr, &addrlen);
         if (connfd > 0)
         {
-            if (schedule::ref().new_coroutine(connection_coroutine, (void *)(intptr_t)connfd))
-            {
-                printf("system busy to handle request.\n");
-                close(connfd);
-                continue;
-            }
+            int conncoid = schedule::ref().new_coroutine(connection_coroutine, (void *)(intptr_t)connfd);
+            schedule::ref().ready_cos_.push_back(conncoid);
             //increase_conn();
         }
         else if (connfd == 0)
         {
             schedule::ref().wait(200);
             continue;
+        }
+        else
+        {
+            //printf("connfd: %d\n", connfd);
         }
     }
 }
@@ -132,8 +134,8 @@ int main(int argc, char** argv)
         }
         tos.clear();
         
-        printf("call run_ready_coroutines 1, ready_cos.size: %lu\n",
-               schedule::ref().ready_cos_.size());
+        //printf("call run_ready_coroutines 1, ready_cos.size: %lu\n",
+        //       schedule::ref().ready_cos_.size());
         run_ready_coroutines();
         
         int timeout_milliseconds = 0;
@@ -147,11 +149,11 @@ int main(int argc, char** argv)
             }
         }
         
-        printf("call event_loop, %d\n", timeout_milliseconds);
+        //printf("call event_loop, %d\n", timeout_milliseconds);
         event_loop(timeout_milliseconds);
         
-        printf("call run_ready_coroutines 2, ready_cos.size: %lu\n",
-               schedule::ref().ready_cos_.size());
+        //printf("call run_ready_coroutines 2, ready_cos.size: %lu\n",
+        //       schedule::ref().ready_cos_.size());
         run_ready_coroutines();
     }
     
