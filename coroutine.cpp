@@ -6,6 +6,7 @@
 #include "coroutine.h"
 #include <assert.h>
 #include <sys/time.h>
+#include <vector>
 
 long long current_miliseconds()
 {
@@ -70,7 +71,33 @@ schedule& schedule::ref()
 	return s;
 }
 
-int schedule::new_coroutine(coroutine_cb cb, void* ud)
+void schedule::init()
+{
+	event_loop_init(100000);
+}
+
+void schedule::run()
+{
+	for (;;) {
+		schedule::ref().check_timers();
+
+		printf("after check_timers, readycount: %lu, suspendcount: %lu\n", ready_cos_.size(), suspend_cos_.size());
+
+		run_ready_coroutines();
+
+		int timeout_milliseconds = next_evloop_timeout();
+
+		printf("call event_loop, timeout: %d milliseconds\n", timeout_milliseconds);
+
+		event_loop(timeout_milliseconds);
+
+		printf("after event_loop, readycount: %lu, suspendcount: %lu\n", ready_cos_.size(), suspend_cos_.size());
+
+		run_ready_coroutines();
+	}
+}
+
+int schedule::new_coroutine(coroutine_cb cb, void* ud) // called by main routine
 {
 	coroutine* co = new coroutine(this, cb, ud, next_coid_);
 	coroutines_.insert(std::make_pair(co->coid_, co));
@@ -78,10 +105,11 @@ int schedule::new_coroutine(coroutine_cb cb, void* ud)
     if (next_coid_ == -1) {
         next_coid_ += 1;
     }
+	ready_cos_.push_back(co->coid_);
 	return co->coid_;
 }
 
-void schedule::del_coroutine(int coid)
+void schedule::del_coroutine(int coid) // called by main routine
 {
 	coroutine* currco = coroutines_[coid];
 	if (currco)
@@ -115,6 +143,7 @@ void schedule::yield()
 	coroutine* currco = coroutines_[currentco_];
 	assert(currco);
 	currco->status_ = COROUTINE_SUSPEND;
+	suspend_cos_.insert(currentco_);
 	currentco_ = -1;
 	swapcontext(&currco->uctx_, &mainctx_);
 }
@@ -129,7 +158,7 @@ int schedule::status(int coid)
 	return COROUTINE_DEAD;
 }
 
-void schedule::coroutine_ready(int coid)
+void schedule::coroutine_ready(int coid) // called by main routine
 {
     coroutine* co = coroutines_[coid];
     assert(co);
@@ -139,7 +168,7 @@ void schedule::coroutine_ready(int coid)
     co->status_ = COROUTINE_READY;
 }
 
-void schedule::urgent_coroutine_ready(int coid)
+void schedule::urgent_coroutine_ready(int coid) // called by main routine
 {
     coroutine* co = coroutines_[coid];
     assert(co);
@@ -149,7 +178,7 @@ void schedule::urgent_coroutine_ready(int coid)
     co->status_ = COROUTINE_READY;
 }
 
-void schedule::wait(int milliseconds)
+void schedule::wait(int milliseconds) 
 {
     coroutine* currco = coroutines_[currentco_];
     assert(currco);
@@ -158,7 +187,6 @@ void schedule::wait(int milliseconds)
     ct.coid = currentco_;
     ct.timeout = currco->timeout_;
     timers_.insert(ct);
-    //suspend_cos_.insert(currentco_);
     yield();
 }
 
@@ -171,6 +199,65 @@ bool schedule::istimeout()
     return ret;
 }
 
+void schedule::check_timers() // called by main routine
+{
+	long long now = current_miliseconds();
+	std::vector<cotimeout> tos;
+	cotimeout_queue::iterator it(timers_.begin());
+	printf("timer count: %d\n", timers_.size());
+	for (; it != timers_.end(); ++it)
+	{
+		if (now < it->timeout) {
+			break;
+		}
+		int coid = it->coid;
+		coroutine* co = coroutines_[coid];
+		assert(co);
+		co->istimeout_ = true;
+		suspend_cos_.erase(coid);
+		ready_cos_.push_back(coid);
+		tos.push_back(*it);
+	}
+	for (size_t i = 0; i<tos.size(); ++i) {
+		timers_.erase(tos[i]);
+	}
+	printf("timeout timer count: %d\n", tos.size());
+	tos.clear();
+}
+
+int schedule::next_evloop_timeout()
+{
+	int timeout_milliseconds = 0;
+	if (timers_.empty()) {
+		timeout_milliseconds = 10 * 1000;
+	}
+	else {
+		timeout_milliseconds = (timers_.begin())->timeout - current_miliseconds();
+		if (timeout_milliseconds < 0) {
+			timeout_milliseconds = 0;
+		}
+	}
+	return timeout_milliseconds;
+}
+
+void schedule::run_ready_coroutines() // called by main routine
+{
+	while (ready_cos_.size())
+	{
+		int coid = ready_cos_.front();
+		ready_cos_.pop_front();
+
+		if (status(coid))
+		{
+			resume(coid);
+		}
+
+		if (status(coid) == COROUTINE_DEAD)
+		{
+			del_coroutine(coid);
+		}
+	}
+}
 
 
 

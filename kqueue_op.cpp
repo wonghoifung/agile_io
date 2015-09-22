@@ -148,8 +148,10 @@ void del_fd_event(int fd, event_t et)
 void event_loop(int millisecs)
 {
     struct timespec t;
-    t.tv_sec = 0;
-    t.tv_nsec = millisecs * 1000 * 1000;
+    //t.tv_sec = 0;
+    //t.tv_nsec = millisecs * 1000 * 1000;
+	t.tv_sec = millisecs / 1000;
+	t.tv_nsec = (millisecs % 1000) * 1000 * 1000;
     int n = kevent(g_eventloop.loopfd, NULL, 0, g_eventloop.ke, g_eventloop.maxconn, &t);
     if (n <= 0)
     {

@@ -55,9 +55,10 @@ int disable_tcp_no_delay(int fd)
 {
     return set_tcp_no_delay(fd, 0);
 }
-/*
+
 int set_keep_alive(int fd, int interval)
 {
+#ifndef __APPLE__
     int val = 1;
     
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
@@ -77,10 +78,10 @@ int set_keep_alive(int fd, int interval)
     val = 3;
     if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0)
         return -1;
-    
+#endif
     return 0;
 }
-*/
+
 int set_reuse_addr(int fd)
 {
     int yes = 1;
@@ -102,15 +103,7 @@ unsigned fd_to_nl(int fd)
     return sa.sin_addr.s_addr;
 }
 
-char *get_peer_ip(int fd)
-{
-    struct in_addr addr;
-    
-    addr.s_addr = fd_to_nl(fd);
-    return inet_ntoa(addr);
-}
-
-unsigned ip_to_nl(const char *ip)
+unsigned ip_to_nl(const char* ip)
 {
     struct in_addr s;
     
@@ -123,7 +116,7 @@ unsigned ip_to_nl(const char *ip)
     return s.s_addr;
 }
 
-int create_tcp_server(const char *ip, int port)
+int create_tcp_server(const char* ip, int port)
 {
     int listenfd;
     struct sockaddr_in svraddr;
@@ -236,7 +229,7 @@ int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
     return 0;
 }
 
-#define fd_not_ready() ((EAGAIN == errno) || (EWOULDBLOCK == errno))
+#define blocking() ((EAGAIN == errno) || (EWOULDBLOCK == errno))
 
 #define ACCEPT_TIMEOUT (3 * 1000)
 
@@ -249,19 +242,21 @@ int ACCEPT(int sockfd, struct sockaddr* addr, socklen_t* addrlen)
         if (EINTR == errno)
             continue;
         
-        if (!fd_not_ready())
+        if (!blocking())
             return -1;
         
         if (add_fd_event(sockfd, EVENT_READ, on_connect, fd2ud(schedule::ref().currentco_)))
             return -2;
         
-        schedule::ref().wait(ACCEPT_TIMEOUT);
-        del_fd_event(sockfd, EVENT_READ);
-        if (schedule::ref().istimeout())
-        {
-            errno = ETIME;
-            return -3;
-        }
+        //schedule::ref().wait(ACCEPT_TIMEOUT);
+        //del_fd_event(sockfd, EVENT_READ);
+        //if (schedule::ref().istimeout())
+        //{
+        //    errno = ETIME;
+        //    return -3;
+        //}
+		schedule::ref().yield();
+		del_fd_event(sockfd, EVENT_READ);
     }
     
     if (set_nonblock(connfd))
@@ -296,19 +291,21 @@ ssize_t READ(int fd, void* buf, size_t count)
         if (EINTR == errno)
             continue;
         
-        if (!fd_not_ready())
+        if (!blocking())
             return -1;
         
         if (add_fd_event(fd, EVENT_READ, on_readwrite, fd2ud(schedule::ref().currentco_)))
             return -2;
         
-        schedule::ref().wait(READ_TIMEOUT);
-        del_fd_event(fd, EVENT_READ);
-        if (schedule::ref().istimeout())
-        {
-            errno = ETIME;
-            return -3;
-        }
+        //schedule::ref().wait(READ_TIMEOUT);
+        //del_fd_event(fd, EVENT_READ);
+        //if (schedule::ref().istimeout())
+        //{
+        //    errno = ETIME;
+        //    return -3;
+        //}
+		schedule::ref().yield();
+		del_fd_event(fd, EVENT_READ);
     }
     
     return n;
@@ -325,19 +322,21 @@ ssize_t RECV(int sockfd, void* buf, size_t len, int flags)
         if (EINTR == errno)
             continue;
         
-        if (!fd_not_ready())
+        if (!blocking())
             return -1;
         
         if (add_fd_event(sockfd, EVENT_READ, on_readwrite, fd2ud(schedule::ref().currentco_)))
             return -2;
         
-        schedule::ref().wait(RECV_TIMEOUT);
-        del_fd_event(sockfd, EVENT_READ);
-        if (schedule::ref().istimeout())
-        {
-            errno = ETIME;
-            return -3;
-        }
+        //schedule::ref().wait(RECV_TIMEOUT);
+        //del_fd_event(sockfd, EVENT_READ);
+        //if (schedule::ref().istimeout())
+        //{
+        //    errno = ETIME;
+        //    return -3;
+        //}
+		schedule::ref().yield();
+		del_fd_event(sockfd, EVENT_READ);
     }
     
     return n;
@@ -354,19 +353,21 @@ ssize_t WRITE(int fd, const void* buf, size_t count)
         if (EINTR == errno)
             continue;
         
-        if (!fd_not_ready())
+        if (!blocking())
             return -1;
         
         if (add_fd_event(fd, EVENT_WRITE, on_readwrite, fd2ud(schedule::ref().currentco_)))
             return -2;
         
-        schedule::ref().wait(WRITE_TIMEOUT);
-        del_fd_event(fd, EVENT_WRITE);
-        if (schedule::ref().istimeout())
-        {
-            errno = ETIME;
-            return -3;
-        }
+        //schedule::ref().wait(WRITE_TIMEOUT);
+        //del_fd_event(fd, EVENT_WRITE);
+        //if (schedule::ref().istimeout())
+        //{
+        //    errno = ETIME;
+        //    return -3;
+        //}
+		schedule::ref().yield();
+		del_fd_event(fd, EVENT_WRITE);
     }
     
     return n;
@@ -383,19 +384,21 @@ ssize_t SEND(int sockfd, const void* buf, size_t len, int flags)
         if (EINTR == errno)
             continue;
         
-        if (!fd_not_ready())
+        if (!blocking())
             return -1;
         
         if (add_fd_event(sockfd, EVENT_WRITE, on_readwrite, fd2ud(schedule::ref().currentco_)))
             return -2;
         
-        schedule::ref().wait(SEND_TIMEOUT);
-        del_fd_event(sockfd, EVENT_WRITE);
-        if (schedule::ref().istimeout())
-        {
-            errno = ETIME;
-            return -3;
-        }
+        //schedule::ref().wait(SEND_TIMEOUT);
+        //del_fd_event(sockfd, EVENT_WRITE);
+        //if (schedule::ref().istimeout())
+        //{
+        //    errno = ETIME;
+        //    return -3;
+        //}
+		schedule::ref().yield();
+		del_fd_event(sockfd, EVENT_WRITE);
     }
     
     return n;

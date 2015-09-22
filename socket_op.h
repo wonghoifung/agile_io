@@ -15,14 +15,13 @@
 int set_nonblock(int fd);
 int enable_tcp_no_delay(int fd);
 int disable_tcp_no_delay(int fd);
-//int set_keep_alive(int fd, int interval);
+int set_keep_alive(int fd, int interval);
 int set_reuse_addr(int fd);
 
 unsigned fd_to_nl(int fd);
-char *get_peer_ip(int fd);
-unsigned ip_to_nl(const char *ip);
+unsigned ip_to_nl(const char* ip);
 
-int create_tcp_server(const char *ip, int port);
+int create_tcp_server(const char* ip, int port);
 
 std::string get_peer_addr(int fd);
 

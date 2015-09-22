@@ -14,5 +14,14 @@
 #include "kqueue_op.h"
 #endif
 
+#ifdef _WIN32 // just make visual studio happy
+#include "event_defs.h"
+typedef void(*event_callback)(void* args);
+inline int add_fd_event(int fd, event_t et, event_callback event_cb, void* args) { return 0; }
+inline void del_fd_event(int fd, event_t et) { }
+inline void event_loop(int millisecs) { }
+inline void event_loop_init(int maxconn) { }
+#endif
+
 #endif
 

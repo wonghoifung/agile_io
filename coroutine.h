@@ -16,6 +16,7 @@
 #include <deque>
 #include <set>
 #include "event_op.h"
+#include "commons.h"
 
 #define COROUTINE_STACK_SIZE (1024*1024)
 
@@ -32,7 +33,7 @@ class schedule;
 
 typedef void(*coroutine_cb)(schedule*, void* ud);
 
-class coroutine
+class coroutine : private noncopyable
 {
 public:
 	coroutine(schedule* s, coroutine_cb cb, void* ud, int coid);
@@ -69,7 +70,7 @@ struct cotimeout_comp
 
 typedef std::set<cotimeout, cotimeout_comp> cotimeout_queue;
 
-class schedule
+class schedule : private noncopyable
 {
 private:
 	schedule();
@@ -78,15 +79,25 @@ private:
 public:
 	static schedule& ref();
 
+	void init();
+	void run();
+
 	int new_coroutine(coroutine_cb cb, void* ud);
 	void del_coroutine(int coid);
+
 	void resume(int coid);
 	void yield();
 	int status(int coid);
+
     void coroutine_ready(int coid);
     void urgent_coroutine_ready(int coid);
+
     void wait(int milliseconds);
     bool istimeout();
+	void check_timers();
+	int next_evloop_timeout();
+
+	void run_ready_coroutines();
 
 	ucontext_t mainctx_;
 	int currentco_;
