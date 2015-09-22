@@ -384,8 +384,12 @@ ssize_t SEND(int sockfd, const void* buf, size_t len, int flags)
         if (EINTR == errno)
             continue;
         
-        if (!blocking())
-            return -1;
+		if (!blocking())
+		{
+			printf("send error, %s\n", strerror(errno));
+			return -1;
+		}
+            
         
         if (add_fd_event(sockfd, EVENT_WRITE, on_readwrite, fd2ud(schedule::ref().currentco_)))
             return -2;

@@ -40,6 +40,7 @@ public:
 	void set_streamid(uint32_t streamid);
 
     void reset();
+	void setsize(int s) { size_ = s; }
             
 protected:
     bool  copy_b(const void* inbuf, int len);

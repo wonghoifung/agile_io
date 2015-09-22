@@ -9,6 +9,8 @@
 
 int recv_block(int sockfd, decoder& dpack)
 {
+	dpack.reset();
+
 	char* buf = dpack.buffer();
 
 	size_t left = c_header_size;
@@ -58,6 +60,7 @@ int recv_block(int sockfd, decoder& dpack)
 		}
 	}
 
+	dpack.setsize(dpack.length() + c_header_size);
 	return dpack.size();
 }
 

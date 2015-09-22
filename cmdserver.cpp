@@ -18,13 +18,16 @@ void cmd_connection_handler(schedule* s, void* args)
 	int ret = recv_block(connfd, dpack);
 	if (ret <= 0)
 	{
+		printf("recv_block return: %d\n", ret);
 		close(connfd);
+		return;
 	}
 
 	if (dpack.command() != cmd_frombox_greeting_request)
 	{
 		printf("should send greeting request first\n");
 		close(connfd);
+		return;
 	}
 
 	char body[c_buffer_size] = { 0 };
@@ -34,12 +37,22 @@ void cmd_connection_handler(schedule* s, void* args)
 	encoder out;
 	out.begin(cmd_tobox_greeting_response);
 	out.end();
-	send_block(connfd, out);
+	ret = send_block(connfd, out);
+
+	if (ret < 0)
+	{
+		printf("send_block ret: %d\n", ret);
+		close(connfd);
+		return;
+	}
 
 	std::string peer = get_peer_addr(connfd);
 	printf("%s register successfully\n", peer.c_str());
 
-	s->wait(20 * 1000);
+	ret = recv_block(connfd, dpack);
+	printf("ret:%d\n", ret);
+
+	// TODO
 
 	close(connfd);
 }
