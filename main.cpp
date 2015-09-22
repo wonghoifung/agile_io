@@ -42,13 +42,14 @@ static void connection_coroutine(schedule* s, void* args)
 
 static void accept_coroutine(schedule* s, void* args)
 {
+    printf("accept_coroutine\n");
     int listenfd = ud2fd(args);
 
     for (;;)
     {
         struct sockaddr addr;
         socklen_t addrlen;
-        int connfd = accept(listenfd, &addr, &addrlen);
+        int connfd = ACCEPT(listenfd, &addr, &addrlen);
         if (connfd > 0)
         {
             if (schedule::ref().new_coroutine(connection_coroutine, (void *)(intptr_t)connfd))
@@ -73,7 +74,6 @@ std::set<int>& suspend_cos = schedule::ref().suspend_cos_;
 void run_ready_coroutines()
 {
     schedule& s = schedule::ref();
-    
     while (ready_cos.size())
     {
         int coid = ready_cos.front();
@@ -107,7 +107,8 @@ int main(int argc, char** argv)
 {
     event_loop_init(1024);
     int listenfd = create_tcp_server("0.0.0.0", 9797);
-    schedule::ref().new_coroutine(accept_coroutine, fd2ud(listenfd));
+    int listencoid =schedule::ref().new_coroutine(accept_coroutine, fd2ud(listenfd));
+    schedule::ref().ready_cos_.push_back(listencoid);
     
     for (;;) {
         long long now = current_miliseconds();
@@ -129,7 +130,10 @@ int main(int argc, char** argv)
         for (size_t i=0; i<tos.size(); ++i) {
             schedule::ref().timers_.erase(tos[i]);
         }
+        tos.clear();
         
+        printf("call run_ready_coroutines 1, ready_cos.size: %lu\n",
+               schedule::ref().ready_cos_.size());
         run_ready_coroutines();
         
         int timeout_milliseconds = 0;
@@ -142,7 +146,12 @@ int main(int argc, char** argv)
                 timeout_milliseconds = 0;
             }
         }
+        
+        printf("call event_loop, %d\n", timeout_milliseconds);
         event_loop(timeout_milliseconds);
+        
+        printf("call run_ready_coroutines 2, ready_cos.size: %lu\n",
+               schedule::ref().ready_cos_.size());
         run_ready_coroutines();
     }
     
