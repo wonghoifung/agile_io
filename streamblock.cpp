@@ -40,7 +40,7 @@ int recv_block(int sockfd, decoder& dpack)
 	size_t bodyleft = dpack.length();
 	if (bodyleft > (c_buffer_size - c_header_size))
 	{
-		printf("packet format error, bodylen:%d\n", bodyleft);
+		printf("packet format error, bodylen:%lu\n", bodyleft);
 		return 0;
 	}
 

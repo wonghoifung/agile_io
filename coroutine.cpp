@@ -25,7 +25,7 @@ static void coroutine_delegate()
 }
 
 coroutine::coroutine(schedule* s, coroutine_cb cb, void* ud, int coid)
-	:cb_(cb), sch_(s), ud_(ud), status_(COROUTINE_READY), 
+	:sch_(s), cb_(cb), ud_(ud), status_(COROUTINE_READY),
 	stack_((char*)malloc(COROUTINE_STACK_SIZE)), coid_(coid),
     istimeout_(false), timeout_(0)
 {
@@ -204,7 +204,7 @@ void schedule::check_timers() // called by main routine
 	long long now = current_miliseconds();
 	std::vector<cotimeout> tos;
 	cotimeout_queue::iterator it(timers_.begin());
-	printf("timer count: %d\n", timers_.size());
+	printf("timer count: %lu\n", timers_.size());
 	for (; it != timers_.end(); ++it)
 	{
 		if (now < it->timeout) {
@@ -221,7 +221,7 @@ void schedule::check_timers() // called by main routine
 	for (size_t i = 0; i<tos.size(); ++i) {
 		timers_.erase(tos[i]);
 	}
-	printf("timeout timer count: %d\n", tos.size());
+	printf("timeout timer count: %lu\n", tos.size());
 	tos.clear();
 }
 

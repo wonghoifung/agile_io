@@ -21,15 +21,15 @@
 //#include <errno.h>
 //#include <assert.h>
 
-static void test_coroutine(schedule* s, void* args)
-{
-	for (size_t i = 0; i < 5; ++i)
-	{
-		s->wait(2 * 1000);
-		time_t now = time(NULL);
-		printf("[test_coroutine] i:%d time: %s\n", i, get_string_time(&now).c_str());
-	}
-}
+//static void test_coroutine(schedule* s, void* args)
+//{
+//	for (size_t i = 0; i < 5; ++i)
+//	{
+//		s->wait(2 * 1000);
+//		time_t now = time(NULL);
+//		printf("[test_coroutine] i:%lu time: %s\n", i, get_string_time(&now).c_str());
+//	}
+//}
 
 int main(int argc, char** argv)
 {

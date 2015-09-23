@@ -19,7 +19,7 @@ void echo_connection_handler(schedule* s, void* args)
 		memset(buf, 0, len);
 		ssize_t n = RECV(connfd, buf, len, 0);
 		if (n <= 0) {
-			printf("RECV return %d\n", n);
+			printf("RECV return %ld\n", n);
 			break;
 		}
 		printf("receive: %s\n", buf);
