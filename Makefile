@@ -1,4 +1,4 @@
-TARGET = echoserver
+TARGET = server
 
 PREFIX_BIN =
 
