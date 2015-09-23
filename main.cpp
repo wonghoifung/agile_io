@@ -33,6 +33,12 @@
 
 int main(int argc, char** argv)
 {
+	//set_daemon();
+
+	printf("cpu num: %d\n", cpu_num());
+
+	set_rlimit();
+
 	schedule::ref().init();
 
 	//schedule::ref().new_coroutine(test_coroutine, NULL);
