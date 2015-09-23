@@ -49,9 +49,12 @@ void cmd_connection_handler(schedule* s, void* args)
 	std::string peer = get_peer_addr(connfd);
 	printf("%s register successfully\n", peer.c_str());
 
-	ret = recv_block(connfd, dpack);
-	printf("ret:%d\n", ret);
-
+	while (ret > 0)
+	{
+		ret = recv_block(connfd, dpack);
+		printf("ret:%d, cmd:%d\n", ret, dpack.command());
+	}
+	
 	// TODO
 
 	close(connfd);
