@@ -16,10 +16,10 @@ CPPFLAGS += -I./
 LIBS = #-lrt
 LINKFLAGS = -L/usr/local/lib
 
-INCLUDEDIRS = ./ ./codec/ ./redis_dao/
+INCLUDEDIRS = ./ ./iobase/ ./codec/ ./redis_dao/
 INCLUDES = $(foreach tmp, $(INCLUDEDIRS), -I $(tmp))
 
-MYSOURCEDIRS = ./ ./codec/ ./redis_dao/
+MYSOURCEDIRS = ./ ./iobase/ ./codec/ ./redis_dao/
 
 SOURCEDIRS = $(MYSOURCEDIRS)
 
