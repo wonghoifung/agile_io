@@ -6,7 +6,10 @@
 #include "echoserver.h"
 #include "socket_op.h"
 #include "coroutine.h"
+#include "redisdao.h"
 #include <string.h>
+
+int cnt = 0;
 
 void echo_connection_handler(schedule* s, void* args)
 {
@@ -22,6 +25,17 @@ void echo_connection_handler(schedule* s, void* args)
 			printf("RECV return %ld\n", n);
 			break;
 		}
+
+		cnt += 1;
+		if (cnt % 2)
+		{
+			set_device_online("abc", "xyz", 0);
+		}
+		else
+		{
+			set_device_offline("abc", "xyz");
+		}
+		
 		printf("receive: %s\n", buf);
 		SEND(connfd, buf, n, 0);
 	}

@@ -8,6 +8,16 @@
 #include "socket_op.h"
 #include "coroutine.h"
 #include "command.h"
+#include "redisdao.h"
+#include <json/json.h>
+#include <sstream>
+
+inline std::string get_connectionid(const std::string& devid, const std::string& addr)
+{
+	std::stringstream ss;
+	ss << devid << "(" << addr << ")";
+	return ss.str();
+}
 
 void cmd_connection_handler(schedule* s, void* args)
 {
@@ -34,6 +44,18 @@ void cmd_connection_handler(schedule* s, void* args)
 	dpack.read_body(body, c_buffer_size);
 	printf("box info: %s\n", body);
 
+	Json::Reader reader;
+	Json::Value root;
+	if (!reader.parse(body, root, false))
+	{
+		printf("invalid greeting request json\n");
+		close(connfd);
+		return;
+	}
+	std::string devid = root["deviceid"].asString();
+	std::string connid = get_connectionid(devid, get_peer_addr(connfd));
+	set_device_online(devid, connid, 0);
+
 	encoder out;
 	out.begin(cmd_tobox_greeting_response);
 	out.end();
@@ -43,6 +65,7 @@ void cmd_connection_handler(schedule* s, void* args)
 	{
 		printf("send_block ret: %d\n", ret);
 		close(connfd);
+		set_device_offline(devid, connid);
 		return;
 	}
 
@@ -56,8 +79,8 @@ void cmd_connection_handler(schedule* s, void* args)
 	}
 	
 	// TODO
-
 	close(connfd);
+	set_device_offline(devid, connid);
 }
 
 void cmd_accept_handler(schedule* s, void* args)

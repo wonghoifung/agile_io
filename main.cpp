@@ -11,6 +11,7 @@
 #include "cmdserver.h"
 #include "echoserver.h"
 #include "commons.h"
+#include "redisdao.h"
 //#include <fcntl.h>
 //#include <arpa/inet.h>
 //#include <sys/types.h>
@@ -43,11 +44,13 @@ int main(int argc, char** argv)
 
 	//schedule::ref().new_coroutine(test_coroutine, NULL);
 
-	//echoserver echosrv("0.0.0.0", 9797);
-	//echosrv.start();
+	redisdao::ref().start("127.0.0.1", 6379);
 
-	cmdserver cmdsrv("0.0.0.0", 10000);
-	cmdsrv.start();
+	echoserver echosrv("0.0.0.0", 9797);
+	echosrv.start();
+
+	//cmdserver cmdsrv("0.0.0.0", 10000);
+	//cmdsrv.start();
     
 	schedule::ref().run();
     

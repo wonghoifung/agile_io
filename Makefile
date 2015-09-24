@@ -12,14 +12,18 @@ endif
 
 CPPFLAGS += -Wall
 CPPFLAGS += -I./
+CPPFLAGS += -I../env/jsoncpp/include/
+CPPFLAGS += -I../env/hiredis/include/hiredis/
 
-LIBS = #-lrt
+LIBS = -ljson -lhiredis
 LINKFLAGS = -L/usr/local/lib
+LINKFLAGS += -L../env/jsoncpp/libs/linux-gcc-4.4.7/
+LINKFLAGS += -L../env/hiredis/lib/
 
-INCLUDEDIRS = ./ ./iobase/ ./codec/ 
+INCLUDEDIRS = ./ ./iobase/ ./codec/ ./redis/
 INCLUDES = $(foreach tmp, $(INCLUDEDIRS), -I $(tmp))
 
-MYSOURCEDIRS = ./ ./iobase/ ./codec/ 
+MYSOURCEDIRS = ./ ./iobase/ ./codec/ ./redis/ 
 
 SOURCEDIRS = $(MYSOURCEDIRS)
 
