@@ -71,9 +71,9 @@ static void adapterCleanup(void* privdata)
 	free(e);
 }
 
-static int adapterAttach(redisAsyncContext* ac)
+inline int adapterAttach(redisAsyncContext* ac)
 {
-	redisContext* c = &(ac->c);
+	//redisContext* c = &(ac->c);
 	adapterEvents* e;
 
 	/* Nothing should be attached when something is already attached */
