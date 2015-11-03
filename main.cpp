@@ -10,6 +10,7 @@
 #include "coroutine.h"
 #include "cmdserver.h"
 #include "echoserver.h"
+#include "socks4a_server.h"
 #include "commons.h"
 #include "redisdao.h"
 //#include <fcntl.h>
@@ -43,6 +44,9 @@ int main(int argc, char** argv)
 	schedule::ref().init();
 
 	//schedule::ref().new_coroutine(test_coroutine, NULL);
+
+	//socks4a_server ssrv("0.0.0.0", 1080);
+	//ssrv.start();
 
 	redisdao::ref().start("127.0.0.1", 6379);
 
