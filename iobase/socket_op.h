@@ -34,4 +34,10 @@ ssize_t RECV(int sockfd, void* buf, size_t len, int flags);
 ssize_t WRITE(int fd, const void* buf, size_t count);
 ssize_t SEND(int sockfd, const void* buf, size_t len, int flags);
 
+uint32_t ip_str2int(const char* ip);
+void ip_int2str(uint32_t ip_num, char* ip);
+int sendnbytes(int sockfd, size_t N, char* buf);
+int readnbytes(int fd, size_t N, char* buf);
+std::pair<int, int> readuntil(int fd, char* buf, size_t buflen, char e);
+
 #endif /* defined(__agile_io_xc__socket_op__) */

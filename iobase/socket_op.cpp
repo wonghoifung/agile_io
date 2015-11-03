@@ -10,6 +10,7 @@
 #include "coroutine.h"
 #include "event_defs.h"
 #include "event_op.h"
+#include "codec/endian_op.h"
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -428,4 +429,81 @@ ssize_t SEND(int sockfd, const void* buf, size_t len, int flags)
     return n;
 }
 
+// helper
 
+uint32_t ip_str2int(const char* ip)
+{
+	struct in_addr addr;
+	inet_aton(ip, &addr);
+	return endian_op<uint32_t>(addr.s_addr);
+}
+
+void ip_int2str(uint32_t ip_num, char* ip)
+{
+	struct in_addr addr;
+	addr.s_addr = endian_op<uint32_t>(ip_num);
+	strcpy(ip, (char*)inet_ntoa(addr));
+}
+
+int sendnbytes(int sockfd, size_t N, char* buf)
+{
+	ssize_t offset = 0;
+	ssize_t left = N;
+
+	while (true)
+	{
+		ssize_t n = SEND(sockfd, buf + offset, left, 0);
+		if (n < 0)
+		{
+			return n;
+		}
+		left -= n;
+		offset += n;
+		if (0 == left)
+		{
+			break;
+		}
+	}
+	return N;
+}
+
+int readnbytes(int fd, size_t N, char* buf)
+{
+	size_t left = N;
+	while (left)
+	{
+		int offset = N - left;
+		int n = RECV(fd, buf + offset, left, 0);
+		if (n <= 0)
+		{
+			return n;
+		}
+		left -= n;
+		if (0 == left)
+		{
+			break;
+		}
+	}
+	return N;
+}
+
+std::pair<int, int> readuntil(int fd, char* buf, size_t buflen, char e)
+{
+	int readcnt = 0;
+	int n = 0;
+	while (buflen - readcnt > 0)
+	{
+		n = RECV(fd, buf + readcnt, buflen - readcnt, 0);
+		if (n <= 0)
+		{
+			return std::make_pair(-1, readcnt); // error 
+		}
+		readcnt += n;
+		char* pos = strchr(buf, e);
+		if (pos)
+		{
+			return std::make_pair(pos - buf, readcnt);
+		}
+	}
+	return std::make_pair(-2, readcnt); // not enough buf
+}
