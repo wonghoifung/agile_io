@@ -161,7 +161,7 @@ int schedule::status(int coid)
 void schedule::coroutine_ready(int coid) // called by main routine
 {
     coroutine* co = coroutines_[coid];
-    assert(co);
+    assert(co); // TODO crash
     co->istimeout_ = false;
     suspend_cos_.erase(coid);
     ready_cos_.push_back(coid);

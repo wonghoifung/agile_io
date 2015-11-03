@@ -45,13 +45,13 @@ int main(int argc, char** argv)
 
 	//schedule::ref().new_coroutine(test_coroutine, NULL);
 
-	//socks4a_server ssrv("0.0.0.0", 1080);
-	//ssrv.start();
+	socks4a_server ssrv("0.0.0.0", 1080);
+	ssrv.start();
 
-	redisdao::ref().start("127.0.0.1", 6379);
+	//redisdao::ref().start("127.0.0.1", 6379);
 
-	echoserver echosrv("0.0.0.0", 9797);
-	echosrv.start();
+	//echoserver echosrv("0.0.0.0", 9797);
+	//echosrv.start();
 
 	//cmdserver cmdsrv("0.0.0.0", 10000);
 	//cmdsrv.start();

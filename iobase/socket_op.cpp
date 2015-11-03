@@ -179,6 +179,22 @@ std::string get_peer_addr(int fd)
     }
 }
 
+std::pair<uint32_t, uint16_t> get_peer_net_pair(int fd)
+{
+	struct sockaddr_in peeraddr;
+	bzero(&peeraddr, sizeof peeraddr);
+	socklen_t addrlen = static_cast<socklen_t>(sizeof peeraddr);
+	if (::getpeername(fd, (struct sockaddr*)(&peeraddr), &addrlen) < 0)
+	{
+		printf("cannot getpeername of fd:%d\n", fd);
+		return std::make_pair(0, 0);
+	}
+	else
+	{
+		return std::make_pair(peeraddr.sin_addr.s_addr, peeraddr.sin_port);
+	}
+}
+
 static void on_readwrite(void* coid)
 {
     schedule::ref().coroutine_ready(ud2fd(coid));
@@ -209,15 +225,19 @@ int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
     if (add_fd_event(sockfd, EVENT_WRITE, on_connect, fd2ud(schedule::ref().currentco_)))
         return -2;
     
-    schedule::ref().wait(CONN_TIMEOUT);
-    del_fd_event(sockfd, EVENT_WRITE);
-    if (schedule::ref().istimeout())
-    {
-        errno = ETIMEDOUT;
-        return -3;
-    }
+    //schedule::ref().wait(CONN_TIMEOUT);
+    //del_fd_event(sockfd, EVENT_WRITE);
+    //if (schedule::ref().istimeout())
+    //{
+    //    errno = ETIMEDOUT;
+    //    return -3;
+    //}
+	schedule::ref().yield();
+	del_fd_event(sockfd, EVENT_WRITE); // TODO
     
-    ret = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &flags, &len);
+	len = sizeof(flags);
+	errno = 0;
+    ret = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, (void*)&flags, &len);
     if (ret == -1 || flags || !len)
     {
         if (flags)

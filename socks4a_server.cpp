@@ -5,12 +5,30 @@
 #include "socks4a_server.h"
 #include "socket_op.h"
 #include "coroutine.h"
+#include "codec/seri.h"
+#include "codec/endian_op.h"
 #include <strings.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <algorithm>
+#include <errno.h>
+
+uint32_t ip_str2int(const char* ip)
+{
+	struct in_addr addr;
+	inet_aton(ip, &addr);
+	return endian_op<uint32_t>(addr.s_addr);
+}
+
+void ip_int2str(uint32_t ip_num, char* ip)
+{
+	struct in_addr addr;
+	addr.s_addr = endian_op<uint32_t>(ip_num);
+	strcpy(ip, (char*)inet_ntoa(addr));
+}
 
 int sendnbytes(int sockfd, size_t N, char* buf)
 {
@@ -54,182 +72,137 @@ int readnbytes(int fd, size_t N, char* buf)
 	return N;
 }
 
-int readhostname(int fd, std::string& hostname)
+std::pair<int,int> readuntil(int fd, char* buf, size_t buflen, char e)
 {
-	const size_t blen = 1024 * 1024;
-	char buf[blen] = { 0 };
-
-	size_t left = blen;
-	size_t read = 0;
-	char* firstpos = NULL;
-	char* secondpos = NULL;
-	while (left)
+	int readcnt = 0;
+	int n = 0;
+	while (buflen - readcnt > 0)
 	{
-		int offset = blen - left;
-		int n = RECV(fd, buf + offset, left, 0);
+		n = RECV(fd, buf + readcnt, buflen - readcnt, 0);
 		if (n <= 0)
 		{
-			return -1;
+			return std::make_pair(-1, readcnt); // error 
 		}
-
-		read += n;
-		if (firstpos == NULL)
+		readcnt += n;
+		char* pos = strchr(buf, e);
+		if (pos)
 		{
-			const char* where = std::find(buf, buf + read, '\0');
-			if (where != buf + n)
-			{
-				firstpos = (char*)where;
-			}
-		}
-		else
-		{
-			const char* where = std::find(firstpos + 1, buf + read, '\0');
-			if (where != buf + n)
-			{
-				secondpos = (char*)where;
-				hostname = secondpos + 1;
-				return 1;
-			}
-		}
-
-		left -= n;
-		if (0 == left)
-		{
-			printf("not enough buffer\n");
-			break;
+			return std::make_pair(pos - buf, readcnt);
 		}
 	}
-	return -1;
+	return std::make_pair(-2, readcnt); // not enough buf
 }
 
-static char t_resolveBuffer[64 * 1024];
-bool resolve(std::string& hostname, sockaddr_in& addr)
-{
-	struct hostent hent;
-	struct hostent* he = NULL;
-	int herrno = 0;
-	bzero(&hent, sizeof(hent));
-
-	int ret = gethostbyname_r(hostname.c_str(), &hent, t_resolveBuffer, sizeof t_resolveBuffer, &he, &herrno);
-	if (ret == 0 && he != NULL)
-	{
-		addr.sin_addr = *reinterpret_cast<struct in_addr*>(he->h_addr);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-struct sockpair
+struct sock_pair
 {
 	int src;
 	int dst;
+	bool dst_done;
+	bool src_done;
 };
 
-class sockpair_pool
-{
-	// TODO
-};
+#define RECVBUFLEN 1024
 
 void dest_connection_handler(schedule* s, void* args)
 {
-	sockpair* pair = (sockpair*)args;
-	while (true)
+	sock_pair* sp = (sock_pair*)args;
+	char buf[RECVBUFLEN] = { 0 };
+	int n = 0;
+	while ((n = RECV(sp->dst, buf, RECVBUFLEN, 0)) > 0)
 	{
-		char buf[1024] = { 0 };
-		int n = RECV(pair->dst, buf, 1024, 0);
-		if (n <= 0)
-		{
-			close(pair->dst);
-			close(pair->src);
-			return;
-		}
-
-		sendnbytes(pair->src, n, buf);
+		sendnbytes(sp->src, n, buf);
 	}
+	// TODO
 }
 
 void socks4a_connection_handler(schedule* s, void* args)
 {
 	int connfd = (int)(intptr_t)args;
-	char buf[8] = { 0 };
-	int ret = readnbytes(connfd, 8, buf);
-	if (ret <= 0)
+	char buf[RECVBUFLEN] = { 0 };
+	
+	int n = readnbytes(connfd, 2, buf);
+	if (n <= 0)
 	{
+		printf("--- error read ver and cmd\n");
 		close(connfd);
 		return;
 	}
+	
 	char ver = buf[0];
 	char cmd = buf[1];
-	const void* port = buf + 2;
-	const void* ip = buf + 4;
-
-	sockaddr_in addr;
-	bzero(&addr, sizeof addr);
-	addr.sin_family = AF_INET;
-	addr.sin_port = *static_cast<const in_port_t*>(port);
-	addr.sin_addr.s_addr = *static_cast<const uint32_t*>(ip);
-
-	bool socks4a = be32toh(addr.sin_addr.s_addr) < 256;
-	bool okay = false;
-	if (socks4a)
+	printf("--- ver:%d, cmd:%d\n", ver, cmd);
+	if (ver != 4 || cmd != 1)
 	{
-		std::string hostname;
-		int r = readhostname(connfd, hostname);
-		if (r <= 0)
-		{
-			close(connfd);
-			return;
-		}
-		printf("socks4a host name: %s\n", hostname.c_str());
-		if (resolve(hostname, addr))
-		{
-			okay = true;
-		}
-	}
-	else
-	{
-		okay = true;
-	}
-
-	if (ver == 4 && cmd == 1 && okay)
-	{
-		int socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		if (CONNECT(socket, (struct sockaddr *)&addr, sizeof(addr)))
-		{
-			close(connfd);
-			return;
-		}
-		char response[] = "\000\x5aUVWXYZ";
-		memcpy(response + 2, &addr.sin_port, 2);
-		memcpy(response + 4, &addr.sin_addr.s_addr, 4);
-		sendnbytes(connfd, 8, response);
-		sockpair* ud = new sockpair;
-		ud->src = connfd;
-		ud->dst = socket;
-		schedule::ref().new_coroutine(dest_connection_handler, (void*)ud);
-	}
-	else
-	{
-		char response[] = "\000\x5bUVWXYZ";
-		sendnbytes(connfd, 8, response);
-		shutdown(connfd, SHUT_WR);
+		printf("--- invalid ver and cmd\n");
+		close(connfd);
 		return;
 	}
 
-	while (true)
+	n = readnbytes(connfd, 6, buf);
+	if (n <= 0)
 	{
-		char b[1024] = { 0 };
-		int n = RECV(connfd, b, 1024, 0);
-		if (n <= 0)
-		{
-			close(connfd);
-			return;
-		}
-		sendnbytes(connfd, n, b);
-	}	
+		printf("--- error read port and host\n");
+		close(connfd);
+		return;
+	}
+
+	char* p = buf;
+	uint16_t port = read_uint16(p);
+	uint32_t ip = read_uint32(p);
+	char ipbuf[32] = { 0 };
+	ip_int2str(ip, ipbuf);
+	printf("--- port:%u, ip:%u(%s)\n", port, ip, ipbuf);
+
+	std::pair<int,int> ret = readuntil(connfd, buf, RECVBUFLEN, '\0');
+	if (ret.first < 0)
+	{
+		printf("--- read userid error, ret:%d\n", ret.first);
+		close(connfd);
+		return;
+	}
+	printf("--- idx:%d, readcnt:%d, userid:%s\n", ret.first, ret.second, buf);
+	
+	int relaysock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	struct sockaddr_in sai;
+	sai.sin_family = PF_INET;
+	sai.sin_port = endian_op<uint16_t>(port);
+	sai.sin_addr.s_addr = endian_op<uint32_t>(ip);
+	n = CONNECT(relaysock, (struct sockaddr*)&sai, sizeof(struct sockaddr_in));
+	if (n != 0)
+	{
+		printf("--- cannot connect server, ret:%d, %s:%d\n", n, ipbuf, port);
+		char* wp = buf;
+		write_int8(4, wp);
+		write_int8(92, wp);
+		write_uint16(0x00, wp);
+		write_uint32(0x00, wp);
+		sendnbytes(connfd, 8, buf);
+		close(connfd);
+		return;
+	}
+	printf("--- server connected\n");
+
+	char* wp = buf;
+	write_int8(0, wp);
+	write_int8(90, wp);
+	std::pair<uint32_t, uint16_t> netpeer = get_peer_net_pair(relaysock);
+	write_uint16(endian_op<uint16_t>(netpeer.second), wp);
+	write_uint32(endian_op<uint32_t>(netpeer.first), wp);
+	sendnbytes(connfd, 8, buf);
+
+	sock_pair* sp = new sock_pair;
+	sp->src = connfd;
+	sp->dst = relaysock;
+	sp->src_done = false;
+	sp->dst_done = false;
+	schedule::ref().new_coroutine(dest_connection_handler, (void*)sp);
+
+	while ((n = RECV(connfd, buf, RECVBUFLEN, 0)) > 0)
+	{
+		sendnbytes(relaysock, n, buf);
+	}
+
+	// TODO
 }
 
 void socks4a_accept_handler(schedule* s, void* args)
@@ -248,13 +221,13 @@ void socks4a_accept_handler(schedule* s, void* args)
 		}
 		else if (connfd == 0)
 		{
-			printf("connfd: %d\n", connfd);
+			printf("--- connfd: %d\n", connfd);
 			schedule::ref().wait(200);
 			continue;
 		}
 		else
 		{
-			printf("connfd: %d\n", connfd);
+			printf("--- connfd: %d\n", connfd);
 		}
 	}
 }

@@ -11,6 +11,7 @@
 
 #include <string>
 #include <sys/socket.h>
+#include <stdint.h>
 
 int set_nonblock(int fd);
 int enable_tcp_no_delay(int fd);
@@ -24,6 +25,7 @@ unsigned ip_to_nl(const char* ip);
 int create_tcp_server(const char* ip, int port);
 
 std::string get_peer_addr(int fd);
+std::pair<uint32_t, uint16_t> get_peer_net_pair(int fd);
 
 int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 int ACCEPT(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
