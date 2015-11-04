@@ -102,7 +102,11 @@ void event_loop(int millisecs)
     {
         struct epoll_event *ee = &g_eventloop.ee[i];
         struct fd_event *fe = &g_eventloop.array[ee->data.fd];
-		printf("[event_loop] fd:%d\n",ee->data.fd);
+		printf("[event_loop] fd:%d, hup_err:%d, in:%d, out:%d\n",
+			ee->data.fd,
+			ee->events&(EPOLLHUP|EPOLLERR),
+			ee->events&EPOLLIN,
+			ee->events&EPOLLOUT);
         fe->cb(fe->args);
     }
 }
