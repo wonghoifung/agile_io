@@ -19,9 +19,10 @@
 //#include <sys/socket.h>
 //#include <netinet/tcp.h>
 //#include <netinet/in.h>
-//#include <string.h>
+#include <string.h>
 //#include <errno.h>
 //#include <assert.h>
+#include <signal.h>
 
 #define CURRENTCO schedule::ref().currentco_
 
@@ -43,6 +44,18 @@ int main(int argc, char** argv)
 	//printf("cpu num: %d\n", cpu_num());
 
 	set_rlimit();
+
+	{
+		struct sigaction sa;
+		memset(&sa, 0, sizeof(struct sigaction));
+		sa.sa_handler = SIG_IGN;
+		sigemptyset(&sa.sa_mask);
+		if (sigaction(SIGPIPE, &sa, NULL) == -1)
+		{
+			printf("sigaction(SIGPIPE) failed\n");
+			exit(0);
+		}
+	}
 
 	schedule::ref().init();
 

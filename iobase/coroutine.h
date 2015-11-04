@@ -93,6 +93,7 @@ public:
     void urgent_coroutine_ready(int coid);
 
     void wait(int milliseconds);
+	void cancel_wait();
     bool istimeout();
 	void check_timers();
 	int next_evloop_timeout();

@@ -12,7 +12,7 @@ long long current_miliseconds()
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    return (long long)(tv.tv_sec) * 1000 + tv.tv_usec / 1000;
 }
 
 static void coroutine_delegate()
@@ -100,7 +100,15 @@ void schedule::run()
 int schedule::new_coroutine(coroutine_cb cb, void* ud) // called by main routine
 {
 	coroutine* co = new coroutine(this, cb, ud, next_coid_);
-	coroutines_.insert(std::make_pair(co->coid_, co));
+	bool ret = coroutines_.insert(std::make_pair(co->coid_, co)).second;
+	if (ret == false)
+	{
+		printf("[new_coroutine] !!!! cannot insert coid:%d\n", co->coid_);
+	}
+	else
+	{
+		printf("[new_coroutine] ++++ insert coid:%d\n", co->coid_);
+	}
 	next_coid_ += 1;
     if (next_coid_ == -1) {
         next_coid_ += 1;
@@ -161,7 +169,13 @@ int schedule::status(int coid)
 void schedule::coroutine_ready(int coid) // called by main routine
 {
     coroutine* co = coroutines_[coid];
-    assert(co); // TODO crash
+	if (co == NULL)
+	{
+		printf("[coroutine_ready] gone coid:%d\n", coid);
+		//return;
+		assert(co);
+	}
+    
     co->istimeout_ = false;
     suspend_cos_.erase(coid);
     ready_cos_.push_back(coid);
@@ -176,6 +190,7 @@ void schedule::urgent_coroutine_ready(int coid) // called by main routine
     suspend_cos_.erase(coid);
     ready_cos_.push_front(coid);
     co->status_ = COROUTINE_READY;
+	//printf("[urgent_coroutine_ready] coid:%d\n", coid);
 }
 
 void schedule::wait(int milliseconds) 
@@ -194,12 +209,26 @@ void schedule::wait(int milliseconds)
     yield();
 }
 
+void schedule::cancel_wait()
+{
+	// now one coroutine can only have one timer
+	cotimeout_queue::iterator it(timers_.begin());
+	for (; it != timers_.end(); ++it)
+	{
+		if (it->coid == currentco_)
+		{
+			timers_.erase(it);
+			return;
+		}
+	}
+}
+
 bool schedule::istimeout()
 {
     coroutine* currco = coroutines_[currentco_];
     assert(currco);
-    bool ret = currco->timeout_;
-    currco->timeout_ = false;
+	bool ret = currco->istimeout_;
+	currco->istimeout_ = false;
     return ret;
 }
 
@@ -265,6 +294,7 @@ void schedule::run_ready_coroutines() // called by main routine
 
 		if (status(coid) == COROUTINE_DEAD)
 		{
+			printf("[run_ready_coroutines] del coroutine: %d\n", coid);
 			del_coroutine(coid);
 		}
 	}

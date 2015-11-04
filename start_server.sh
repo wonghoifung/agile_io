@@ -4,5 +4,5 @@ if [ "$1"x = "clr"x ]; then
 	rm -f *.log
 fi
 
-./server
+./server 
 

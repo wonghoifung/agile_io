@@ -11,6 +11,7 @@
 #include "event_defs.h"
 #include "event_op.h"
 #include "codec/endian_op.h"
+#include "commons.h"
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -226,13 +227,18 @@ int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
     if (add_fd_event(sockfd, EVENT_WRITE, on_connect, fd2ud(schedule::ref().currentco_)))
         return -2;
     
+	//time_t now = time(NULL);
+	//printf("[CONNECT co:%d] before wait, %s\n", schedule::ref().currentco_, get_string_time(&now).c_str());
     schedule::ref().wait(CONN_TIMEOUT);
+	//now = time(NULL);
+	//printf("[CONNECT co:%d] after wait, %s\n", schedule::ref().currentco_, get_string_time(&now).c_str());
     del_fd_event(sockfd, EVENT_WRITE);
     if (schedule::ref().istimeout())
     {
         errno = ETIMEDOUT;
         return -3;
     }
+	schedule::ref().cancel_wait();
 	//schedule::ref().yield();
 	//del_fd_event(sockfd, EVENT_WRITE); 
     
