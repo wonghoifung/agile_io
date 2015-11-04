@@ -23,13 +23,16 @@
 //#include <errno.h>
 //#include <assert.h>
 
+#define CURRENTCO schedule::ref().currentco_
+
 //static void test_coroutine(schedule* s, void* args)
 //{
+//	int seconds = (int)(long)args;
 //	for (size_t i = 0; i < 5; ++i)
 //	{
-//		s->wait(2 * 1000);
+//		s->wait(seconds * 1000);
 //		time_t now = time(NULL);
-//		printf("[test_coroutine] i:%lu time: %s\n", i, get_string_time(&now).c_str());
+//		printf("[test_coroutine co:%d, sec:%d] i:%lu time: %s\n", CURRENTCO, seconds, i, get_string_time(&now).c_str());
 //	}
 //}
 
@@ -37,13 +40,18 @@ int main(int argc, char** argv)
 {
 	//set_daemon();
 
-	printf("cpu num: %d\n", cpu_num());
+	//printf("cpu num: %d\n", cpu_num());
 
 	set_rlimit();
 
 	schedule::ref().init();
 
-	//schedule::ref().new_coroutine(test_coroutine, NULL);
+	//time_t now = time(NULL);
+	//printf("[main co:%d] time: %s\n", CURRENTCO, get_string_time(&now).c_str());
+	//schedule::ref().new_coroutine(test_coroutine, (void*)2);
+	//schedule::ref().new_coroutine(test_coroutine, (void*)3);
+	//schedule::ref().new_coroutine(test_coroutine, (void*)4);
+	//schedule::ref().new_coroutine(test_coroutine, (void*)5);
 
 	socks4a_server ssrv("0.0.0.0", 1080);
 	ssrv.start();

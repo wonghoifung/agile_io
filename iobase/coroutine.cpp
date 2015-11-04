@@ -81,17 +81,17 @@ void schedule::run()
 	for (;;) {
 		schedule::ref().check_timers();
 
-		printf("after check_timers, readycount: %lu, suspendcount: %lu\n", ready_cos_.size(), suspend_cos_.size());
+		//printf("after check_timers, readycount: %lu, suspendcount: %lu\n", ready_cos_.size(), suspend_cos_.size());
 
 		run_ready_coroutines();
 
 		int timeout_milliseconds = next_evloop_timeout();
 
-		printf("call event_loop, timeout: %d milliseconds\n", timeout_milliseconds);
+		//printf("call event_loop, timeout: %d milliseconds\n", timeout_milliseconds);
 
 		event_loop(timeout_milliseconds);
 
-		printf("after event_loop, readycount: %lu, suspendcount: %lu\n", ready_cos_.size(), suspend_cos_.size());
+		//printf("after event_loop, readycount: %lu, suspendcount: %lu\n", ready_cos_.size(), suspend_cos_.size());
 
 		run_ready_coroutines();
 	}
@@ -183,6 +183,10 @@ void schedule::wait(int milliseconds)
     coroutine* currco = coroutines_[currentco_];
     assert(currco);
     currco->timeout_ = current_miliseconds() + milliseconds;
+
+	//time_t to = currco->timeout_ / 1000;
+	//printf("[wait co:%d] timeout:%s\n", currentco_, get_string_time(&to).c_str());
+
     cotimeout ct;
     ct.coid = currentco_;
     ct.timeout = currco->timeout_;
@@ -204,12 +208,19 @@ void schedule::check_timers() // called by main routine
 	long long now = current_miliseconds();
 	std::vector<cotimeout> tos;
 	cotimeout_queue::iterator it(timers_.begin());
-	printf("timer count: %lu\n", timers_.size());
+	//printf("timer count: %lu\n", timers_.size());
+
+	//time_t t = now / 1000;
+	//printf("[check_timers co:%d] now: %s\n", currentco_, get_string_time(&t).c_str());
 	for (; it != timers_.end(); ++it)
 	{
-		if (now < it->timeout) {
+		//time_t t = it->timeout / 1000;
+		//printf("[check_timers co:%d] cco: %d, timeout: %s\n", currentco_, it->coid, get_string_time(&t).c_str());
+		if (now <= it->timeout) {
+			//printf("[check_timers] not timeout, break cco:%d\n", it->coid);
 			break;
 		}
+		//printf("[check_timers] timeout, cco:%d\n", it->coid);
 		int coid = it->coid;
 		coroutine* co = coroutines_[coid];
 		assert(co);
@@ -221,7 +232,7 @@ void schedule::check_timers() // called by main routine
 	for (size_t i = 0; i<tos.size(); ++i) {
 		timers_.erase(tos[i]);
 	}
-	printf("timeout timer count: %lu\n", tos.size());
+	//printf("timeout timer count: %lu, left:%lu\n", tos.size(), timers_.size());
 	tos.clear();
 }
 

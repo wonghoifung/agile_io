@@ -226,15 +226,15 @@ int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
     if (add_fd_event(sockfd, EVENT_WRITE, on_connect, fd2ud(schedule::ref().currentco_)))
         return -2;
     
-    //schedule::ref().wait(CONN_TIMEOUT);
-    //del_fd_event(sockfd, EVENT_WRITE);
-    //if (schedule::ref().istimeout())
-    //{
-    //    errno = ETIMEDOUT;
-    //    return -3;
-    //}
-	schedule::ref().yield();
-	del_fd_event(sockfd, EVENT_WRITE); // TODO
+    schedule::ref().wait(CONN_TIMEOUT);
+    del_fd_event(sockfd, EVENT_WRITE);
+    if (schedule::ref().istimeout())
+    {
+        errno = ETIMEDOUT;
+        return -3;
+    }
+	//schedule::ref().yield();
+	//del_fd_event(sockfd, EVENT_WRITE); 
     
 	len = sizeof(flags);
 	errno = 0;

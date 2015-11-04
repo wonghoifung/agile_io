@@ -53,7 +53,7 @@ public:
 struct cotimeout
 {
     int coid;
-    int timeout;
+    long long timeout;
 };
 
 struct cotimeout_comp
