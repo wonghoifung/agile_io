@@ -352,8 +352,11 @@ ssize_t RECV(int sockfd, void* buf, size_t len, int flags)
         if (!blocking())
             return -1;
 		printf("[RECV] sock:%d coid:%d\n", sockfd, schedule::ref().currentco_);
-        if (add_fd_event(sockfd, EVENT_READ, on_readwrite, fd2ud(schedule::ref().currentco_)))
-            return -2;
+		if (add_fd_event(sockfd, EVENT_READ, on_readwrite, fd2ud(schedule::ref().currentco_)))
+		{
+			printf("[RECV] eeeeeeee add fail, sock:%d coid:%d\n", sockfd, schedule::ref().currentco_);
+			return -2;
+		}
         
         //schedule::ref().wait(RECV_TIMEOUT);
         //del_fd_event(sockfd, EVENT_READ);

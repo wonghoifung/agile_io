@@ -18,6 +18,7 @@ struct fd_event
     int mask;
     event_callback cb;
     void *args;
+	char info[64];//TODO
 };
 
 struct event_loop
@@ -30,6 +31,7 @@ struct event_loop
 
 static struct event_loop g_eventloop;
 
+// one fd can only be use in one coroutine
 int add_fd_event(int fd, event_t et, event_callback event_cb, void* args)
 {
     struct fd_event *fe;
@@ -58,7 +60,9 @@ int add_fd_event(int fd, event_t et, event_callback event_cb, void* args)
     fe->mask |= et;
     fe->cb = event_cb;
     fe->args = args;
-
+	printf("[add_fd_event] fd:%d, ev:%d, co:%d\n",fd,et,ud2fd(args));
+	memset(fe->info,0,64);
+	sprintf(fe->info,"[add_fd_event] fd:%d, ev:%d, co:%d",fd,et,ud2fd(args));
     return 0;
 }
 
@@ -102,11 +106,20 @@ void event_loop(int millisecs)
     {
         struct epoll_event *ee = &g_eventloop.ee[i];
         struct fd_event *fe = &g_eventloop.array[ee->data.fd];
-		printf("[event_loop] fd:%d, hup_err:%d, in:%d, out:%d\n",
+		printf("[event_loop] fd:%d, hup_err:%d, in:%d, out:%d, coid:%d, info:%s\n",
 			ee->data.fd,
 			ee->events&(EPOLLHUP|EPOLLERR),
 			ee->events&EPOLLIN,
-			ee->events&EPOLLOUT);
+			ee->events&EPOLLOUT,
+			ud2fd(fe->args),
+			fe->info);
+
+		//if (is_co_gone(ud2fd(fe->args)))
+		//{
+		//	printf("[event_loop] fd:%d, coid:%d gone\n",ee->data.fd,ud2fd(fe->args));
+		//	close(ee->data.fd);
+		//	continue;
+		//}
         fe->cb(fe->args);
     }
 }

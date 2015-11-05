@@ -16,36 +16,56 @@
 #include <algorithm>
 #include <errno.h>
 #include <assert.h>
+#include <list>
 
-std::map<int, int> g_socks_pairs;
+struct sndbuf
+{
+	char* buf;
+	size_t len;
+};
+
+std::map<int, std::list<sndbuf> > g_fd_sndbufs; // fd - send buffers
+
+std::map<int, int> g_socks_pairs; // src - dst
 
 #define RECVBUFLEN 1024
 
-void dest_connection_handler(schedule* s, void* args)
+void co_recv_from_dst_srv(schedule* s, void* args)
 {
 	int connfd = (int)args;
 
 	std::map<int, int>::iterator it = g_socks_pairs.find(connfd);
 	if (it == g_socks_pairs.end())
 	{
-		printf("[dest_connection_handler] cannot find relay sock, coid:%d\n", schedule::ref().currentco_);
+		printf("[co_recv_from_dst_srv] cannot find relay sock, coid:%d\n", schedule::ref().currentco_);
 		return;
 	}
 	int relaysock = it->second;
 
+	//del_fd_event(connfd, EVENT_READ);
 	char buf[RECVBUFLEN] = { 0 };
 	int n = 0;
 	while ((n = RECV(relaysock, buf, RECVBUFLEN, 0)) > 0)
 	{
-		sendnbytes(connfd, n, buf);
+		sndbuf sb;
+		sb.buf = (char*)malloc(n);
+		sb.len = n;
+		g_fd_sndbufs[connfd].push_back(sb);
+
+		// DON'T DO THIS
+		//if (sendnbytes(connfd, n, buf) < 0)
+		//{
+		//	break;
+		//}
 	}
-	del_fd_event(relaysock, EVENT_ALL);
+	
+	//del_fd_event(relaysock, EVENT_ALL);
 	close(relaysock);
 
-	printf("[dest_connection_handler] ------> over, coid:%d(fd:%d)\n", schedule::ref().currentco_, relaysock);
+	printf("[co_recv_from_dst_srv] ------> over, coid:%d(fd:%d)\n", schedule::ref().currentco_, relaysock);
 }
 
-void socks4a_connection_handler(schedule* s, void* args)
+void co_recv_from_brower(schedule* s, void* args)
 {
 	int connfd = (int)(intptr_t)args;
 	char buf[RECVBUFLEN] = { 0 };
@@ -122,23 +142,34 @@ void socks4a_connection_handler(schedule* s, void* args)
 
 	assert(g_socks_pairs.find(connfd) == g_socks_pairs.end());
 	g_socks_pairs[connfd] = relaysock;
-	
-	int coi = schedule::ref().new_coroutine(dest_connection_handler, (void*)connfd);
-	printf("[______________] src_coid:%d(fd:%d), dst_coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd, coi, relaysock);
 
+	int coi = schedule::ref().new_coroutine(co_recv_from_dst_srv, (void*)connfd);
+	printf("[______________ recv from dst] src_coid:%d(fd:%d), dst_coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd, coi, relaysock);
+
+	//del_fd_event(relaysock, EVENT_READ);
 	while ((n = RECV(connfd, buf, RECVBUFLEN, 0)) > 0)
 	{
-		sendnbytes(relaysock, n, buf);
+		sndbuf sb;
+		sb.buf = (char*)malloc(n);
+		sb.len = n;
+		g_fd_sndbufs[relaysock].push_back(sb);
+
+		// DON'T DO THIS
+		//if (sendnbytes(relaysock, n, buf) < 0)
+		//{
+		//	break;
+		//}
 	}
-	del_fd_event(connfd, EVENT_ALL);
+	
+	//del_fd_event(connfd, EVENT_ALL);
 	close(connfd);
 	
 	g_socks_pairs.erase(connfd);
 
-	printf("[socks4a_connection_handler] ==========> over, coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd);
+	printf("[co_recv_from_brower] ==========> over, coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd);
 }
 
-void socks4a_accept_handler(schedule* s, void* args)
+void co_accept_browser_conn(schedule* s, void* args)
 {
 	socks4a_server* s4asrv = (socks4a_server*)args;
 	int listenfd = s4asrv->listenfd();
@@ -150,7 +181,7 @@ void socks4a_accept_handler(schedule* s, void* args)
 		int connfd = ACCEPT(listenfd, &addr, &addrlen);
 		if (connfd > 0)
 		{
-			schedule::ref().new_coroutine(socks4a_connection_handler, (void*)(intptr_t)connfd);
+			schedule::ref().new_coroutine(co_recv_from_brower, (void*)(intptr_t)connfd);
 		}
 		else if (connfd == 0)
 		{
@@ -178,6 +209,6 @@ socks4a_server::~socks4a_server()
 void socks4a_server::start()
 {
 	listenfd_ = create_tcp_server(host_.c_str(), port_);
-	schedule::ref().new_coroutine(socks4a_accept_handler, this);
+	schedule::ref().new_coroutine(co_accept_browser_conn, this);
 }
 
