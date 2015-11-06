@@ -11,30 +11,35 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <assert.h>
 #include "epoll_op.h"
 
 struct fd_event
 {
     int mask;
     event_callback cb;
-    void *args;
-	char info[64];//TODO
+    void* args;
+
+	//char info[64];
+
+	// handle write event in one coroutine and read event in another if needed
+	int wcoid;//now read write callback are same
+	int rcoid;
 };
 
 struct event_loop
 {
     int max_conn;               
-    struct fd_event *array;     
+    struct fd_event* array;     
     int epfd;                   
     struct epoll_event *ee; 
 };
 
 static struct event_loop g_eventloop;
 
-// one fd can only be use in one coroutine
 int add_fd_event(int fd, event_t et, event_callback event_cb, void* args)
 {
-    struct fd_event *fe;
+    struct fd_event* fe;
     int op;
     struct epoll_event ee;
     int mask;
@@ -51,8 +56,22 @@ int add_fd_event(int fd, event_t et, event_callback event_cb, void* args)
     ee.data.fd = fd;
     mask = et | fe->mask; //merge old event
 
+	{
+		// 1fd2coroutine
+		if (et&EVENT_READ)
+		{
+			assert(fe->rcoid==-1);
+			fe->rcoid=ud2fd(args);
+		}
+		if (et&EVENT_WRITE)
+		{
+			assert(fe->wcoid==-1);
+			fe->wcoid=ud2fd(args);
+		}
+	}
+
     if (mask & EVENT_READ)  ee.events |= EPOLLIN;
-    if (mask & EVENT_WRITE)  ee.events |= EPOLLOUT;
+	if (mask & EVENT_WRITE)  ee.events |= EPOLLOUT;
 
     if (-1 == epoll_ctl(g_eventloop.epfd, op, fd, &ee))
         return -2;
@@ -60,9 +79,9 @@ int add_fd_event(int fd, event_t et, event_callback event_cb, void* args)
     fe->mask |= et;
     fe->cb = event_cb;
     fe->args = args;
-	printf("[add_fd_event] fd:%d, ev:%d, co:%d\n",fd,et,ud2fd(args));
-	memset(fe->info,0,64);
-	sprintf(fe->info,"[add_fd_event] fd:%d, ev:%d, co:%d",fd,et,ud2fd(args));
+	//printf("[add_fd_event] fd:%d, ev:%d, co:%d\n",fd,et,ud2fd(args));
+	//memset(fe->info,0,64);
+	//sprintf(fe->info,"[add_fd_event] fd:%d, ev:%d, co:%d",fd,et,ud2fd(args));
     return 0;
 }
 
@@ -78,6 +97,19 @@ void del_fd_event(int fd, event_t et)
     fe = &g_eventloop.array[fd];
     if (EVENT_NONE == fe->mask)
         return;
+
+	
+	{
+		// 1fd2coroutine
+		if (et&EVENT_READ)
+		{
+			fe->rcoid=-1;
+		}
+		if (et&EVENT_WRITE)
+		{
+			fe->wcoid=-1;
+		}
+	}
 
     fe->mask &= ~(et);    
     mask = fe->mask;
@@ -106,21 +138,25 @@ void event_loop(int millisecs)
     {
         struct epoll_event *ee = &g_eventloop.ee[i];
         struct fd_event *fe = &g_eventloop.array[ee->data.fd];
-		printf("[event_loop] fd:%d, hup_err:%d, in:%d, out:%d, coid:%d, info:%s\n",
-			ee->data.fd,
-			ee->events&(EPOLLHUP|EPOLLERR),
-			ee->events&EPOLLIN,
-			ee->events&EPOLLOUT,
-			ud2fd(fe->args),
-			fe->info);
+		//printf("[event_loop] fd:%d, hup_err:%d, in:%d, out:%d, coid:%d, info:%s\n",
+		//	ee->data.fd,
+		//	ee->events&(EPOLLHUP|EPOLLERR),
+		//	ee->events&EPOLLIN,
+		//	ee->events&EPOLLOUT,
+		//	ud2fd(fe->args),
+		//	fe->info);
 
-		//if (is_co_gone(ud2fd(fe->args)))
-		//{
-		//	printf("[event_loop] fd:%d, coid:%d gone\n",ee->data.fd,ud2fd(fe->args));
-		//	close(ee->data.fd);
-		//	continue;
-		//}
-        fe->cb(fe->args);
+		// 1fd2coroutine
+		if (ee->events&EPOLLIN)
+		{
+			fe->cb(fd2ud(fe->rcoid));
+		}
+		else
+		{
+			fe->cb(fd2ud(fe->wcoid));
+		}
+
+        //fe->cb(fe->args);
     }
 }
 
@@ -134,6 +170,15 @@ void event_loop_init(int maxconn)
         printf("Failed to malloc fd g_eventloop\n");
         exit(0);
     }
+	
+	{
+		// 1fd2coroutine
+		for (size_t i = 0; i < g_eventloop.max_conn; i++)
+		{
+			g_eventloop.array[i].wcoid=-1;
+			g_eventloop.array[i].rcoid=-1;
+		}
+	}
 
     g_eventloop.epfd = epoll_create(1024);
     if (-1 == g_eventloop.epfd)

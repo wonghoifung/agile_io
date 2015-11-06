@@ -227,11 +227,7 @@ int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
     if (add_fd_event(sockfd, EVENT_WRITE, on_connect, fd2ud(schedule::ref().currentco_)))
         return -2;
     
-	//time_t now = time(NULL);
-	//printf("[CONNECT co:%d] before wait, %s\n", schedule::ref().currentco_, get_string_time(&now).c_str());
     schedule::ref().wait(CONN_TIMEOUT);
-	//now = time(NULL);
-	//printf("[CONNECT co:%d] after wait, %s\n", schedule::ref().currentco_, get_string_time(&now).c_str());
     del_fd_event(sockfd, EVENT_WRITE);
     if (schedule::ref().istimeout())
     {
@@ -239,8 +235,6 @@ int CONNECT(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
         return -3;
     }
 	schedule::ref().cancel_wait();
-	//schedule::ref().yield();
-	//del_fd_event(sockfd, EVENT_WRITE); 
     
 	len = sizeof(flags);
 	errno = 0;
@@ -351,14 +345,13 @@ ssize_t RECV(int sockfd, void* buf, size_t len, int flags)
         
         if (!blocking())
             return -1;
-		printf("[RECV] sock:%d coid:%d\n", sockfd, schedule::ref().currentco_);
+
 		if (add_fd_event(sockfd, EVENT_READ, on_readwrite, fd2ud(schedule::ref().currentco_)))
 		{
-			printf("[RECV] eeeeeeee add fail, sock:%d coid:%d\n", sockfd, schedule::ref().currentco_);
 			return -2;
 		}
         
-        //schedule::ref().wait(RECV_TIMEOUT);
+        //schedule::ref().wait(500); 
         //del_fd_event(sockfd, EVENT_READ);
         //if (schedule::ref().istimeout())
         //{
@@ -367,6 +360,12 @@ ssize_t RECV(int sockfd, void* buf, size_t len, int flags)
         //}
 		schedule::ref().yield();
 		del_fd_event(sockfd, EVENT_READ);
+
+		// 1fd2coroutine
+		if (schedule::ref().isawake())
+		{
+			return -4;
+		}
     }
     
     return n;

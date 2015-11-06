@@ -15,6 +15,7 @@
 #include <map>
 #include <deque>
 #include <set>
+#include <assert.h>
 #include "event_op.h"
 #include "commons.h"
 
@@ -48,6 +49,7 @@ public:
 	int coid_;
     bool istimeout_;
     long long timeout_;
+	bool awakebypeer_;// 1fd2coroutine
 };
 
 struct cotimeout
@@ -84,6 +86,24 @@ public:
 
 	int new_coroutine(coroutine_cb cb, void* ud);
 	void del_coroutine(int coid);
+
+	coroutine* get_coroutine(int coid) // 1fd2coroutine
+	{
+		std::map<int, coroutine*>::iterator it = coroutines_.find(coid);
+		if (it != coroutines_.end())
+		{
+			return it->second;
+		}
+		return NULL;
+	}
+	bool isawake() // 1fd2coroutine
+	{
+		coroutine* currco = coroutines_[currentco_];
+		assert(currco);
+		bool ret = currco->awakebypeer_;
+		currco->awakebypeer_ = false;
+		return ret;
+	}
 
 	void resume(int coid);
 	void yield();

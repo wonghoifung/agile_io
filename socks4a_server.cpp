@@ -18,15 +18,9 @@
 #include <assert.h>
 #include <list>
 
-struct sndbuf
-{
-	char* buf;
-	size_t len;
-};
-
-std::map<int, std::list<sndbuf> > g_fd_sndbufs; // fd - send buffers
-
-std::map<int, int> g_socks_pairs; // src - dst
+std::map<int, int> g_socks_pairs; // srcfd - dstfd
+std::map<int, int> g_relay_co_pairs; // dstfd - coid
+std::map<int, int> g_conn_co_pairs; // srcfd - coid
 
 #define RECVBUFLEN 1024
 
@@ -42,27 +36,42 @@ void co_recv_from_dst_srv(schedule* s, void* args)
 	}
 	int relaysock = it->second;
 
-	//del_fd_event(connfd, EVENT_READ);
 	char buf[RECVBUFLEN] = { 0 };
 	int n = 0;
 	while ((n = RECV(relaysock, buf, RECVBUFLEN, 0)) > 0)
 	{
-		sndbuf sb;
-		sb.buf = (char*)malloc(n);
-		sb.len = n;
-		g_fd_sndbufs[connfd].push_back(sb);
-
-		// DON'T DO THIS
-		//if (sendnbytes(connfd, n, buf) < 0)
-		//{
-		//	break;
-		//}
+		if (sendnbytes(connfd, n, buf) < 0)
+		{
+			break;
+		}
 	}
 	
-	//del_fd_event(relaysock, EVENT_ALL);
 	close(relaysock);
 
-	printf("[co_recv_from_dst_srv] ------> over, coid:%d(fd:%d)\n", schedule::ref().currentco_, relaysock);
+	printf("[co_recv_from_dst_srv] ------> dst over, coid:%d(fd:%d)\n", schedule::ref().currentco_, relaysock);
+
+	if (n != -4)  // to kill peer
+	{
+		coroutine* oco = schedule::ref().get_coroutine(schedule::ref().currentco_);
+		assert(oco);
+		coroutine* co = schedule::ref().get_coroutine(g_conn_co_pairs[connfd]);
+		if (co == NULL || co->status_ == COROUTINE_DEAD)
+		{
+			// do nothing
+		}
+		else
+		{
+			schedule::ref().urgent_coroutine_ready(schedule::ref().currentco_);
+
+			schedule::ref().currentco_ = g_conn_co_pairs[connfd];
+			co->awakebypeer_ = true;
+			co->status_ = COROUTINE_RUNNING;
+			swapcontext(&oco->uctx_, &co->uctx_);
+		}
+		g_socks_pairs.erase(connfd);
+		g_relay_co_pairs.erase(relaysock);
+		g_conn_co_pairs.erase(connfd);
+	}
 }
 
 void co_recv_from_brower(schedule* s, void* args)
@@ -80,7 +89,6 @@ void co_recv_from_brower(schedule* s, void* args)
 	
 	char ver = buf[0];
 	char cmd = buf[1];
-	//printf("--- ver:%d, cmd:%d\n", ver, cmd);
 	if (ver != 4 || cmd != 1)
 	{
 		printf("--- invalid ver and cmd\n");
@@ -101,7 +109,6 @@ void co_recv_from_brower(schedule* s, void* args)
 	uint32_t ip = read_uint32(p);
 	char ipbuf[32] = { 0 };
 	ip_int2str(ip, ipbuf);
-	//printf("--- port:%u, ip:%u(%s)\n", port, ip, ipbuf);
 
 	std::pair<int,int> ret = readuntil(connfd, buf, RECVBUFLEN, '\0');
 	if (ret.first < 0)
@@ -110,7 +117,6 @@ void co_recv_from_brower(schedule* s, void* args)
 		close(connfd);
 		return;
 	}
-	//printf("--- idx:%d, readcnt:%d, userid:%s\n", ret.first, ret.second, buf);
 	
 	int relaysock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	struct sockaddr_in sai;
@@ -130,7 +136,6 @@ void co_recv_from_brower(schedule* s, void* args)
 		close(connfd);
 		return;
 	}
-	//printf("--- server connected\n");
 
 	char* wp = buf;
 	write_int8(0, wp);
@@ -144,29 +149,48 @@ void co_recv_from_brower(schedule* s, void* args)
 	g_socks_pairs[connfd] = relaysock;
 
 	int coi = schedule::ref().new_coroutine(co_recv_from_dst_srv, (void*)connfd);
-	printf("[______________ recv from dst] src_coid:%d(fd:%d), dst_coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd, coi, relaysock);
 
-	//del_fd_event(relaysock, EVENT_READ);
+	assert(g_relay_co_pairs.find(relaysock) == g_relay_co_pairs.end());
+	g_relay_co_pairs[relaysock] = coi;
+
+	assert(g_conn_co_pairs.find(connfd) == g_conn_co_pairs.end());
+	g_conn_co_pairs[connfd] = schedule::ref().currentco_;
+
+	printf("[________________] srcfd:%d(coid:%d) - dstfd:%d(coid:%d)\n", connfd, schedule::ref().currentco_, relaysock, coi);
+
 	while ((n = RECV(connfd, buf, RECVBUFLEN, 0)) > 0)
 	{
-		sndbuf sb;
-		sb.buf = (char*)malloc(n);
-		sb.len = n;
-		g_fd_sndbufs[relaysock].push_back(sb);
-
-		// DON'T DO THIS
-		//if (sendnbytes(relaysock, n, buf) < 0)
-		//{
-		//	break;
-		//}
+		if (sendnbytes(relaysock, n, buf) < 0)
+		{
+			break;
+		}
 	}
 	
-	//del_fd_event(connfd, EVENT_ALL);
 	close(connfd);
-	
-	g_socks_pairs.erase(connfd);
+	printf("[co_recv_from_brower] ==========> src over, coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd);
 
-	printf("[co_recv_from_brower] ==========> over, coid:%d(fd:%d)\n", schedule::ref().currentco_, connfd);
+	if (n != -4) // to kill peer
+	{
+		coroutine* oco = schedule::ref().get_coroutine(schedule::ref().currentco_);
+		assert(oco);
+		coroutine* co = schedule::ref().get_coroutine(coi);
+		if (co == NULL || co->status_ == COROUTINE_DEAD)
+		{
+			// do nothing
+		}
+		else
+		{
+			schedule::ref().urgent_coroutine_ready(schedule::ref().currentco_);
+
+			schedule::ref().currentco_ = coi;
+			co->awakebypeer_ = true;
+			co->status_ = COROUTINE_RUNNING;
+			swapcontext(&oco->uctx_, &co->uctx_);
+		}
+		g_socks_pairs.erase(connfd);
+		g_relay_co_pairs.erase(relaysock);
+		g_conn_co_pairs.erase(connfd);
+	}
 }
 
 void co_accept_browser_conn(schedule* s, void* args)
