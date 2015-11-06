@@ -26,7 +26,7 @@ std::map<int, int> g_conn_co_pairs; // srcfd - coid
 
 void co_recv_from_dst_srv(schedule* s, void* args)
 {
-	int connfd = (int)args;
+	int connfd = (int)(long)args;
 
 	std::map<int, int>::iterator it = g_socks_pairs.find(connfd);
 	if (it == g_socks_pairs.end())
@@ -148,7 +148,7 @@ void co_recv_from_brower(schedule* s, void* args)
 	assert(g_socks_pairs.find(connfd) == g_socks_pairs.end());
 	g_socks_pairs[connfd] = relaysock;
 
-	int coi = schedule::ref().new_coroutine(co_recv_from_dst_srv, (void*)connfd);
+	int coi = schedule::ref().new_coroutine(co_recv_from_dst_srv, (void*)(long)connfd);
 
 	assert(g_relay_co_pairs.find(relaysock) == g_relay_co_pairs.end());
 	g_relay_co_pairs[relaysock] = coi;

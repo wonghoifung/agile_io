@@ -173,7 +173,7 @@ void event_loop_init(int maxconn)
 	
 	{
 		// 1fd2coroutine
-		for (size_t i = 0; i < g_eventloop.max_conn; i++)
+		for (int i = 0; i < g_eventloop.max_conn; i++)
 		{
 			g_eventloop.array[i].wcoid=-1;
 			g_eventloop.array[i].rcoid=-1;
