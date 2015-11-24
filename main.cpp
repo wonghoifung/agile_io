@@ -8,7 +8,6 @@
 
 #include "socket_op.h"
 #include "coroutine.h"
-#include "cmdserver.h"
 #include "echoserver.h"
 #include "socks4a_server.h"
 #include "commons.h"
