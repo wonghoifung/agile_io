@@ -48,7 +48,7 @@ int main()
 	}
 
 	// 7.数组索引，慢
-	int i=0;
+	unsigned int i=0;
 	for (; i<list_size(task_list); ++i) 
 	{
 		list_addr(task_list, i, item);
